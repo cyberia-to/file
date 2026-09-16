@@ -1,4 +1,6 @@
-# particle spec
+# file spec
+
+Repository: `file`. Rust package: `cyber-file`; library: `file`.
 
 - A particle is the Hemera digest of content, 32 bytes.
 - `Particle::hash(bytes)` is the only constructor from content.

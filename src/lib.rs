@@ -1,8 +1,8 @@
-//! Protocol particle: a 32-byte Hemera digest as a named thing.
+//! Content-addressed files and their particle identities.
 //!
-//! Hemera hashes. This crate *is* the hash as identity. Storage (bbg),
-//! UI (prysm), and the robot (cyb) all depend on this type — they do not
-//! define `[u8; 32]` again.
+//! Hemera hashes. This crate names content with [`Particle`], its 32-byte
+//! digest, and carries the bytes in [`File`]. [`Kind`] and [`sniff`] identify
+//! content formats for consumers such as Spark and Cyb.
 //!
 //! A [`File`] is a particle plus its bytes. Not every particle has data
 //! on this machine; not every file has a spark that can draw it.

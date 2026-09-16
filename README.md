@@ -1,13 +1,15 @@
-# particle
+# file
 
-A **particle** is a 32-byte Hemera digest as a named thing. Hemera hashes; this crate *is* the hash as identity.
+Content-addressed files and their particle identities.
 
-A **file** is `particle + data`. Not every particle has bytes on this machine.
+A **file** is `particle + data`. Its **particle** is the 32-byte Hemera digest
+that identifies the content. A particle can be known without its bytes being
+available on this machine.
 
-Crate: `cyber-particle`. Downstream: bbg, nox, cyb, spark, prysm — they take `Particle`, they do not invent `[u8; 32]`.
+Rust package: `cyber-file`; library: `file`. It provides `File`, `Particle`,
+`Kind` and `sniff` for Spark and Cyb. Hemera owns hashing; Spark owns opening
+and rendering a file's content.
 
-```
-hemera  →  particle  →  spark
-                ↑
-              file = particle + data
+```text
+hemera  →  file::{Particle, File, Kind}  →  spark
 ```

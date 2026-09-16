@@ -1,21 +1,21 @@
 # ---
-# tags: particle, config
+# tags: file, particle, config
 # crystal-type: source
 # crystal-domain: cyber
 # ---
 [package]
-name = "cyber-particle"
+name = "cyber-file"
 version = "0.1.0"
 edition = "2024"
-description = "Particle — a 32-byte Hemera digest as a named thing. File = particle + data."
+description = "Content-addressed files, particle identities and content kinds."
 license-file = "LICENSE"
-repository = "https://github.com/cyberia-to/particle"
+repository = "https://github.com/cyberia-to/file"
 readme = "README.md"
-keywords = ["cyber", "particle", "hemera", "content-addressed"]
+keywords = ["cyber", "file", "particle", "hemera", "content-addressed"]
 categories = ["data-structures"]
 
 [lib]
-name = "particle"
+name = "file"
 path = "src/lib.rs"
 
 [dependencies]
