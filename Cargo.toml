@@ -1,0 +1,25 @@
+# ---
+# tags: particle, config
+# crystal-type: source
+# crystal-domain: cyber
+# ---
+[package]
+name = "cyber-particle"
+version = "0.1.0"
+edition = "2024"
+description = "Particle — a 32-byte Hemera digest as a named thing. File = particle + data."
+license-file = "LICENSE"
+repository = "https://github.com/cyberia-to/particle"
+readme = "README.md"
+keywords = ["cyber", "particle", "hemera", "content-addressed"]
+categories = ["data-structures"]
+
+[lib]
+name = "particle"
+path = "src/lib.rs"
+
+[dependencies]
+hemera = { package = "cyber-hemera", path = "../hemera/rs" }
+
+[lints.rust]
+missing_debug_implementations = "warn"
