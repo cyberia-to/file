@@ -8,6 +8,11 @@ pub enum Kind {
     ImageJpeg,
     ImageGif,
     ImageWebp,
+    Pdf,
+    VideoMp4,
+    VideoWebm,
+    AudioMp3,
+    AudioWav,
     Opaque,
 }
 
@@ -23,6 +28,22 @@ pub fn sniff(data: &[u8]) -> Kind {
     }
     if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
         return Kind::ImageWebp;
+    }
+    if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WAVE" {
+        return Kind::AudioWav;
+    }
+    if data.starts_with(b"%PDF-") {
+        return Kind::Pdf;
+    }
+    if data.len() >= 12 && &data[4..8] == b"ftyp" {
+        return Kind::VideoMp4;
+    }
+    if data.len() >= 4 && &data[0..4] == &[0x1a, 0x45, 0xdf, 0xa3] {
+        return Kind::VideoWebm;
+    }
+    if data.len() >= 3 && (data.starts_with(b"ID3") || (data[0] == 0xff && data[1] & 0xe0 == 0xe0))
+    {
+        return Kind::AudioMp3;
     }
     if looks_like_text(data) {
         return Kind::Text;
@@ -44,4 +65,61 @@ fn looks_like_text(data: &[u8]) -> bool {
         }
     }
     weird * 20 < data.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sniffs_pdf() {
+        let mut data = b"%PDF-1.7\n".to_vec();
+        data.extend_from_slice(&[0; 16]);
+        assert_eq!(sniff(&data), Kind::Pdf);
+    }
+
+    #[test]
+    fn sniffs_mp4() {
+        let mut data = vec![0, 0, 0, 24];
+        data.extend_from_slice(b"ftypisom");
+        data.extend_from_slice(&[0; 8]);
+        assert_eq!(sniff(&data), Kind::VideoMp4);
+    }
+
+    #[test]
+    fn sniffs_webm() {
+        let mut data = vec![0x1a, 0x45, 0xdf, 0xa3];
+        data.extend_from_slice(&[0; 16]);
+        assert_eq!(sniff(&data), Kind::VideoWebm);
+    }
+
+    #[test]
+    fn sniffs_wav() {
+        let mut data = b"RIFF".to_vec();
+        data.extend_from_slice(&[0; 4]);
+        data.extend_from_slice(b"WAVE");
+        assert_eq!(sniff(&data), Kind::AudioWav);
+    }
+
+    #[test]
+    fn sniffs_mp3_id3() {
+        let mut data = b"ID3".to_vec();
+        data.extend_from_slice(&[0; 16]);
+        assert_eq!(sniff(&data), Kind::AudioMp3);
+    }
+
+    #[test]
+    fn sniffs_mp3_frame_sync() {
+        let mut data = vec![0xff, 0xfb];
+        data.extend_from_slice(&[0; 16]);
+        assert_eq!(sniff(&data), Kind::AudioMp3);
+    }
+
+    #[test]
+    fn webp_still_wins_over_wav_riff() {
+        let mut data = b"RIFF".to_vec();
+        data.extend_from_slice(&[0; 4]);
+        data.extend_from_slice(b"WEBP");
+        assert_eq!(sniff(&data), Kind::ImageWebp);
+    }
 }
