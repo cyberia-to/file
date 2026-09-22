@@ -57,7 +57,7 @@ impl Particle {
 
     pub fn from_hex(s: &str) -> Option<Self> {
         let s = s.trim();
-        if s.len() != 64 {
+        if s.len() != 64 || !s.is_ascii() {
             return None;
         }
         let mut out = [0u8; 32];
@@ -128,6 +128,21 @@ mod tests {
         let p = Particle::hash(b"roundtrip");
         assert_eq!(Particle::from_hex(&p.to_hex()), Some(p));
         assert_eq!(Particle::from_hex("zz"), None);
+    }
+
+    #[test]
+    fn from_hex_rejects_non_ascii_without_panicking() {
+        // 61 ASCII bytes + 'é' (2 bytes) + 1 ASCII byte = 64 bytes, 63 chars.
+        // The byte-length check alone used to let this reach the char-sliced
+        // loop, where slicing at byte offset 62 lands inside 'é' and panics.
+        let mut s = String::new();
+        for _ in 0..61 {
+            s.push('a');
+        }
+        s.push('é');
+        s.push('a');
+        assert_eq!(s.len(), 64);
+        assert_eq!(Particle::from_hex(&s), None);
     }
 
     #[test]
