@@ -6,6 +6,23 @@
 //! naming cyberlink onto it. A CID whose bytes never surfaced gets the
 //! particle of the CID label itself: a black hole, addressed by a cyberlink
 //! from the CID text, sparked if the bytes ever arrive.
+//!
+//! Two things here are provisional and follow decisions that are open on
+//! cyber/launch.md, not settled by this module:
+//!
+//! - the particle of present bytes is whatever [`Particle::hash`] computes
+//!   today: `hemera::hash(data)`, 32 bytes, no prefix. row 19 (one particle
+//!   definition) may move it to hemera over the lens commitment; when it
+//!   does, this module follows the crate and every re-addressed particle
+//!   changes with it.
+//! - the identity of a black hole is `Particle::hash` of the CID text. the
+//!   missing-bytes decision may replace it; one reason it is open is that
+//!   this value coincides with the particle of a file whose bytes are
+//!   exactly that CID text, so a black hole and such a file would share one
+//!   node.
+//!
+//! What does not move: the CID is kept on every row, as a name for the
+//! naming cyberlink, never as the identity.
 
 use crate::Particle;
 
@@ -67,6 +84,14 @@ mod tests {
         let lit = readdress(cid, Some(b"the bytes surfaced"));
         assert_ne!(dark.particle, lit.particle);
         assert_eq!(lit.particle, Particle::hash(b"the bytes surfaced"));
+    }
+
+    #[test]
+    fn cid_is_kept_on_every_row_as_the_name() {
+        let lit = readdress("QmLit", Some(b"bytes"));
+        let dark = readdress("QmDark", None);
+        assert_eq!(lit.cid, "QmLit");
+        assert_eq!(dark.cid, "QmDark");
     }
 
     #[test]
