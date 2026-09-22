@@ -7,8 +7,10 @@
 //! A [`File`] is a particle plus its bytes. Not every particle has data
 //! on this machine; not every file has a spark that can draw it.
 
+mod readdress;
 mod sniff;
 
+pub use readdress::{Readdressed, readdress, readdress_all};
 pub use sniff::{Kind, sniff};
 
 /// A content-addressed particle: Hemera digest of its bytes.
