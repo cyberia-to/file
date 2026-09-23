@@ -57,12 +57,15 @@ impl Particle {
 
     pub fn from_hex(s: &str) -> Option<Self> {
         let s = s.trim();
-        if s.len() != 64 {
+        if s.len() != 64 || !s.is_ascii() {
             return None;
         }
+        let bytes = s.as_bytes();
         let mut out = [0u8; 32];
         for i in 0..32 {
-            out[i] = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).ok()?;
+            let hi = (bytes[i * 2] as char).to_digit(16)?;
+            let lo = (bytes[i * 2 + 1] as char).to_digit(16)?;
+            out[i] = ((hi as u8) << 4) | lo as u8;
         }
         Some(Self(out))
     }
@@ -128,6 +131,21 @@ mod tests {
         let p = Particle::hash(b"roundtrip");
         assert_eq!(Particle::from_hex(&p.to_hex()), Some(p));
         assert_eq!(Particle::from_hex("zz"), None);
+    }
+
+    #[test]
+    fn from_hex_rejects_non_ascii_without_panicking() {
+        // 61 'a's + 'é' (2 bytes) + 1 'a' = 64 bytes, but 'é' straddles a
+        // byte offset from_hex used to slice on — this used to panic with
+        // "byte index 62 is not a char boundary" instead of returning None.
+        let s: String = "a".repeat(61) + "é" + "a";
+        assert_eq!(s.len(), 64);
+        assert_eq!(Particle::from_hex(&s), None);
+    }
+
+    #[test]
+    fn from_hex_rejects_non_hex_ascii() {
+        assert_eq!(Particle::from_hex(&"g".repeat(64)), None);
     }
 
     #[test]
