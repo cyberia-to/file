@@ -143,4 +143,63 @@ mod tests {
         data.extend_from_slice(&[0; 16]);
         assert_eq!(sniff(&data), Kind::ImagePng);
     }
+
+    #[test]
+    fn file_kind_jpeg() {
+        let mut data = vec![0xff, 0xd8, 0xff, 0xe0];
+        data.extend_from_slice(&[0; 16]);
+        assert_eq!(sniff(&data), Kind::ImageJpeg);
+    }
+
+    #[test]
+    fn file_kind_gif_both_versions() {
+        let mut gif87 = b"GIF87a".to_vec();
+        gif87.extend_from_slice(&[0; 16]);
+        assert_eq!(sniff(&gif87), Kind::ImageGif);
+
+        let mut gif89 = b"GIF89a".to_vec();
+        gif89.extend_from_slice(&[0; 16]);
+        assert_eq!(sniff(&gif89), Kind::ImageGif);
+    }
+
+    #[test]
+    fn sniff_empty_is_opaque_not_text() {
+        // looks_like_text's own empty guard must win: no bytes is not text.
+        assert_eq!(sniff(&[]), Kind::Opaque);
+    }
+
+    #[test]
+    fn sniff_invalid_utf8_is_opaque() {
+        // Lone continuation bytes: never a valid UTF-8 string, and match
+        // none of the image magic prefixes.
+        let data = vec![0x80, 0x81, 0x82, 0x83, 0x84, 0x85];
+        assert_eq!(sniff(&data), Kind::Opaque);
+    }
+
+    #[test]
+    fn sniff_common_control_bytes_stay_text() {
+        // Tab, LF, CR and ESC are explicitly allowed by looks_like_text's
+        // weirdness filter, not counted against the ratio at all.
+        let mut data = b"line one\tindented\nline two\r\n".to_vec();
+        data.push(0x1b); // ESC, e.g. the start of an ANSI escape sequence
+        data.extend_from_slice(b"[0m more text");
+        assert_eq!(sniff(&data), Kind::Text);
+    }
+
+    #[test]
+    fn sniff_weird_byte_ratio_below_threshold_is_text() {
+        // weird * 20 < len must hold: 100 bytes, 1 weird byte (1*20=20 < 100).
+        let mut data = vec![b'a'; 99];
+        data.push(0x01); // a weird control byte, still valid UTF-8
+        assert_eq!(sniff(&data), Kind::Text);
+    }
+
+    #[test]
+    fn sniff_weird_byte_ratio_at_threshold_is_opaque() {
+        // 10 bytes, 1 weird byte: weird * 20 (20) is not < len (10), so the
+        // ratio check fails and the data falls through to Opaque.
+        let mut data = vec![b'a'; 9];
+        data.push(0x01);
+        assert_eq!(sniff(&data), Kind::Opaque);
+    }
 }
