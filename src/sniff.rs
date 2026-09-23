@@ -8,6 +8,7 @@ pub enum Kind {
     ImageJpeg,
     ImageGif,
     ImageWebp,
+    ImageBmp,
     Opaque,
 }
 
@@ -24,10 +25,26 @@ pub fn sniff(data: &[u8]) -> Kind {
     if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
         return Kind::ImageWebp;
     }
+    if looks_like_bmp(data) {
+        return Kind::ImageBmp;
+    }
     if looks_like_text(data) {
         return Kind::Text;
     }
     Kind::Opaque
+}
+
+/// `BM` alone is too weak a magic (two ASCII bytes collide with real text).
+/// Confirm it by requiring the DIB header size field right after the
+/// 14-byte file header to be one of the handful of sizes any real BMP
+/// carries — BITMAPCOREHEADER (12), BITMAPINFOHEADER (40), the V2/V3
+/// extensions (52, 56), OS/2 2.x (64), or BITMAPV4/V5HEADER (108, 124).
+fn looks_like_bmp(data: &[u8]) -> bool {
+    if data.len() < 18 || &data[0..2] != b"BM" {
+        return false;
+    }
+    let dib_size = u32::from_le_bytes([data[14], data[15], data[16], data[17]]);
+    matches!(dib_size, 12 | 40 | 52 | 56 | 64 | 108 | 124)
 }
 
 fn looks_like_text(data: &[u8]) -> bool {
@@ -44,4 +61,48 @@ fn looks_like_text(data: &[u8]) -> bool {
         }
     }
     weird * 20 < data.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn bmp_header(dib_size: u32) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"BM");
+        bytes.extend_from_slice(&[0u8; 4]); // file size, unchecked by sniff
+        bytes.extend_from_slice(&[0u8; 4]); // reserved
+        bytes.extend_from_slice(&[0u8; 4]); // pixel data offset, unchecked by sniff
+        bytes.extend_from_slice(&dib_size.to_le_bytes());
+        bytes
+    }
+
+    #[test]
+    fn bitmapinfoheader_sniffs_as_bmp() {
+        assert_eq!(sniff(&bmp_header(40)), Kind::ImageBmp);
+    }
+
+    #[test]
+    fn bitmapcoreheader_sniffs_as_bmp() {
+        assert_eq!(sniff(&bmp_header(12)), Kind::ImageBmp);
+    }
+
+    #[test]
+    fn v4_and_v5_headers_sniff_as_bmp() {
+        assert_eq!(sniff(&bmp_header(108)), Kind::ImageBmp);
+        assert_eq!(sniff(&bmp_header(124)), Kind::ImageBmp);
+    }
+
+    #[test]
+    fn bm_prefixed_text_with_unknown_dib_size_is_not_bmp() {
+        // Two ASCII bytes are too weak a magic on their own; a real
+        // sentence starting "BM" must not misclassify as an image.
+        let text = b"BMW cars are not bitmaps, this line is plain text.";
+        assert_eq!(sniff(text), Kind::Text);
+    }
+
+    #[test]
+    fn truncated_bm_prefix_is_not_bmp() {
+        assert_eq!(sniff(b"BM\x00\x00\x00\x00"), Kind::Opaque);
+    }
 }
