@@ -8,6 +8,8 @@ pub enum Kind {
     ImageJpeg,
     ImageGif,
     ImageWebp,
+    FontTtf,
+    FontOtf,
     Opaque,
 }
 
@@ -23,6 +25,12 @@ pub fn sniff(data: &[u8]) -> Kind {
     }
     if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
         return Kind::ImageWebp;
+    }
+    if data.starts_with(&[0x00, 0x01, 0x00, 0x00]) || data.starts_with(b"true") || data.starts_with(b"ttcf") {
+        return Kind::FontTtf;
+    }
+    if data.starts_with(b"OTTO") {
+        return Kind::FontOtf;
     }
     if looks_like_text(data) {
         return Kind::Text;
@@ -44,4 +52,44 @@ fn looks_like_text(data: &[u8]) -> bool {
         }
     }
     weird * 20 < data.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sniffs_ttf_by_sfnt_version() {
+        let mut data = vec![0x00, 0x01, 0x00, 0x00];
+        data.extend_from_slice(&[0; 40]);
+        assert_eq!(sniff(&data), Kind::FontTtf);
+    }
+
+    #[test]
+    fn sniffs_ttf_by_apple_true_tag() {
+        let mut data = b"true".to_vec();
+        data.extend_from_slice(&[0; 40]);
+        assert_eq!(sniff(&data), Kind::FontTtf);
+    }
+
+    #[test]
+    fn sniffs_ttf_collection() {
+        let mut data = b"ttcf".to_vec();
+        data.extend_from_slice(&[0; 40]);
+        assert_eq!(sniff(&data), Kind::FontTtf);
+    }
+
+    #[test]
+    fn sniffs_otf() {
+        let mut data = b"OTTO".to_vec();
+        data.extend_from_slice(&[0; 40]);
+        assert_eq!(sniff(&data), Kind::FontOtf);
+    }
+
+    #[test]
+    fn near_miss_sfnt_version_is_not_a_font() {
+        let mut data = vec![0x00, 0x01, 0x00, 0x01]; // not the exact sfnt version tag
+        data.extend_from_slice(&[0; 40]);
+        assert_ne!(sniff(&data), Kind::FontTtf);
+    }
 }
