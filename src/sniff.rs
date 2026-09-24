@@ -8,6 +8,7 @@ pub enum Kind {
     ImageJpeg,
     ImageGif,
     ImageWebp,
+    ImageIco,
     Opaque,
 }
 
@@ -23,6 +24,10 @@ pub fn sniff(data: &[u8]) -> Kind {
     }
     if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
         return Kind::ImageWebp;
+    }
+    // ICONDIR: reserved = 0, type = 1 (icon, not 2 = cursor).
+    if data.len() >= 6 && data[0..4] == [0x00, 0x00, 0x01, 0x00] {
+        return Kind::ImageIco;
     }
     if looks_like_text(data) {
         return Kind::Text;
@@ -44,4 +49,30 @@ fn looks_like_text(data: &[u8]) -> bool {
         }
     }
     weird * 20 < data.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn icondir_sniffs_as_ico() {
+        assert_eq!(sniff(&[0x00, 0x00, 0x01, 0x00, 0x01, 0x00]), Kind::ImageIco);
+    }
+
+    #[test]
+    fn cur_type_is_not_ico() {
+        // Same reserved+magic shape, but type = 2 (cursor, not icon).
+        assert_eq!(sniff(&[0x00, 0x00, 0x02, 0x00, 0x01, 0x00]), Kind::Opaque);
+    }
+
+    #[test]
+    fn truncated_icondir_is_not_ico() {
+        assert_eq!(sniff(&[0x00, 0x00, 0x01]), Kind::Opaque);
+    }
+
+    #[test]
+    fn nonzero_reserved_is_not_ico() {
+        assert_eq!(sniff(&[0x01, 0x00, 0x01, 0x00, 0x01, 0x00]), Kind::Opaque);
+    }
 }
