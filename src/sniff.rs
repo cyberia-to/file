@@ -8,6 +8,7 @@ pub enum Kind {
     ImageJpeg,
     ImageGif,
     ImageWebp,
+    AudioAac,
     Opaque,
 }
 
@@ -24,10 +25,20 @@ pub fn sniff(data: &[u8]) -> Kind {
     if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
         return Kind::ImageWebp;
     }
+    if is_adts_aac(data) {
+        return Kind::AudioAac;
+    }
     if looks_like_text(data) {
         return Kind::Text;
     }
     Kind::Opaque
+}
+
+/// A bare ADTS AAC frame: 12-bit sync `1111 1111 1111`, then a fixed
+/// `00` layer field with no equivalent in MPEG audio (which reserves that
+/// layer value), so this never collides with an MP3 frame sync.
+fn is_adts_aac(data: &[u8]) -> bool {
+    data.len() >= 2 && data[0] == 0xff && (data[1] & 0xf6) == 0xf0
 }
 
 fn looks_like_text(data: &[u8]) -> bool {
@@ -44,4 +55,33 @@ fn looks_like_text(data: &[u8]) -> bool {
         }
     }
     weird * 20 < data.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn adts_frame_version_and_protection_bits_all_sniff_as_aac() {
+        for byte1 in [0xf0u8, 0xf1, 0xf8, 0xf9] {
+            let data = [0xff, byte1, 0x00, 0x00];
+            assert_eq!(sniff(&data), Kind::AudioAac, "byte1 = {byte1:#04x}");
+        }
+    }
+
+    #[test]
+    fn mpeg_reserved_layer_is_not_aac() {
+        // layer bits (0x06) set to a non-zero, non-AAC value
+        assert_eq!(sniff(&[0xff, 0xf2, 0x00, 0x00]), Kind::Opaque);
+    }
+
+    #[test]
+    fn short_buffer_is_not_aac() {
+        assert_eq!(sniff(&[0xff]), Kind::Opaque);
+    }
+
+    #[test]
+    fn non_sync_bytes_are_unaffected() {
+        assert_eq!(sniff(b"hello particle"), Kind::Text);
+    }
 }
