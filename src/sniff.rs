@@ -8,6 +8,7 @@ pub enum Kind {
     ImageJpeg,
     ImageGif,
     ImageWebp,
+    AudioAiff,
     Opaque,
 }
 
@@ -23,6 +24,9 @@ pub fn sniff(data: &[u8]) -> Kind {
     }
     if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
         return Kind::ImageWebp;
+    }
+    if data.len() >= 12 && &data[0..4] == b"FORM" && (&data[8..12] == b"AIFF" || &data[8..12] == b"AIFC") {
+        return Kind::AudioAiff;
     }
     if looks_like_text(data) {
         return Kind::Text;
@@ -44,4 +48,44 @@ fn looks_like_text(data: &[u8]) -> bool {
         }
     }
     weird * 20 < data.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sniffs_aiff() {
+        let mut data = b"FORM".to_vec();
+        data.extend_from_slice(&[0, 0, 0, 42]); // chunk size, irrelevant here
+        data.extend_from_slice(b"AIFF");
+        data.extend_from_slice(b"COMMextra bytes");
+        assert_eq!(sniff(&data), Kind::AudioAiff);
+    }
+
+    #[test]
+    fn sniffs_aifc() {
+        let mut data = b"FORM".to_vec();
+        data.extend_from_slice(&[0, 0, 1, 0]);
+        data.extend_from_slice(b"AIFC");
+        data.extend_from_slice(b"restofthefile");
+        assert_eq!(sniff(&data), Kind::AudioAiff);
+    }
+
+    #[test]
+    fn rejects_other_form_containers() {
+        // FORM-based RIFF-like container that is not AIFF/AIFC (e.g. a
+        // hypothetical unrelated IFF format) must not be sniffed as audio.
+        let mut data = b"FORM".to_vec();
+        data.extend_from_slice(&[0, 0, 0, 4]);
+        data.extend_from_slice(b"ILBM");
+        assert_ne!(sniff(&data), Kind::AudioAiff);
+    }
+
+    #[test]
+    fn short_form_prefix_is_not_aiff() {
+        // Fewer than 12 bytes: too short to read the form-type field at all.
+        let data = b"FORM".to_vec();
+        assert_ne!(sniff(&data), Kind::AudioAiff);
+    }
 }
