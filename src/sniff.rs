@@ -8,8 +8,14 @@ pub enum Kind {
     ImageJpeg,
     ImageGif,
     ImageWebp,
+    AudioM4a,
     Opaque,
 }
+
+/// ISOBMFF major brands that mark a `ftyp` box as M4A/M4B audio, not the
+/// video (MP4/M4V) or still-image (HEIC/HEIF/AVIF) brands the same
+/// container shape also carries.
+const M4A_BRANDS: [&[u8; 4]; 3] = [b"M4A ", b"M4B ", b"M4P "];
 
 pub fn sniff(data: &[u8]) -> Kind {
     if data.len() >= 8 && data.starts_with(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]) {
@@ -24,10 +30,73 @@ pub fn sniff(data: &[u8]) -> Kind {
     if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
         return Kind::ImageWebp;
     }
+    if is_m4a(data) {
+        return Kind::AudioM4a;
+    }
     if looks_like_text(data) {
         return Kind::Text;
     }
     Kind::Opaque
+}
+
+/// A `ftyp` ISOBMFF box whose major brand names M4A/M4B/M4P audio.
+fn is_m4a(data: &[u8]) -> bool {
+    if data.len() < 12 || &data[4..8] != b"ftyp" {
+        return false;
+    }
+    let brand: &[u8; 4] = match data[8..12].try_into() {
+        Ok(b) => b,
+        Err(_) => return false,
+    };
+    M4A_BRANDS.contains(&brand)
+}
+
+#[cfg(test)]
+mod m4a_tests {
+    use super::*;
+
+    fn ftyp(brand: &[u8; 4]) -> Vec<u8> {
+        let mut data = vec![0, 0, 0, 24];
+        data.extend_from_slice(b"ftyp");
+        data.extend_from_slice(brand);
+        data.extend_from_slice(&[0; 16]);
+        data
+    }
+
+    #[test]
+    fn sniffs_m4a() {
+        assert_eq!(sniff(&ftyp(b"M4A ")), Kind::AudioM4a);
+    }
+
+    #[test]
+    fn sniffs_m4b_audiobook() {
+        assert_eq!(sniff(&ftyp(b"M4B ")), Kind::AudioM4a);
+    }
+
+    #[test]
+    fn sniffs_m4p_protected() {
+        assert_eq!(sniff(&ftyp(b"M4P ")), Kind::AudioM4a);
+    }
+
+    #[test]
+    fn mp4_video_brand_is_not_m4a() {
+        assert_eq!(sniff(&ftyp(b"isom")), Kind::Opaque);
+    }
+
+    #[test]
+    fn heic_brand_is_not_m4a() {
+        assert_eq!(sniff(&ftyp(b"heic")), Kind::Opaque);
+    }
+
+    #[test]
+    fn short_ftyp_is_not_m4a() {
+        assert!(!is_m4a(b"ftyp"));
+    }
+
+    #[test]
+    fn truncated_ftyp_box_is_not_m4a() {
+        assert!(!is_m4a(b"\0\0\0\x18ftypis"));
+    }
 }
 
 fn looks_like_text(data: &[u8]) -> bool {
