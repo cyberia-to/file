@@ -8,6 +8,8 @@ pub enum Kind {
     ImageJpeg,
     ImageGif,
     ImageWebp,
+    FontWoff,
+    FontWoff2,
     Opaque,
 }
 
@@ -23,6 +25,12 @@ pub fn sniff(data: &[u8]) -> Kind {
     }
     if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
         return Kind::ImageWebp;
+    }
+    if data.starts_with(b"wOFF") {
+        return Kind::FontWoff;
+    }
+    if data.starts_with(b"wOF2") {
+        return Kind::FontWoff2;
     }
     if looks_like_text(data) {
         return Kind::Text;
@@ -44,4 +52,37 @@ fn looks_like_text(data: &[u8]) -> bool {
         }
     }
     weird * 20 < data.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sniffs_woff() {
+        let mut data = b"wOFF".to_vec();
+        data.extend_from_slice(&[0; 40]);
+        assert_eq!(sniff(&data), Kind::FontWoff);
+    }
+
+    #[test]
+    fn sniffs_woff2() {
+        let mut data = b"wOF2".to_vec();
+        data.extend_from_slice(&[0; 40]);
+        assert_eq!(sniff(&data), Kind::FontWoff2);
+    }
+
+    #[test]
+    fn near_miss_font_magic_is_not_a_font() {
+        // one bit off from "wOFF" in the last byte
+        let mut data = b"wOFf".to_vec();
+        data.extend_from_slice(&[0; 40]);
+        assert_ne!(sniff(&data), Kind::FontWoff);
+        assert_ne!(sniff(&data), Kind::FontWoff2);
+    }
+
+    #[test]
+    fn empty_is_opaque_not_font() {
+        assert_eq!(sniff(&[]), Kind::Opaque);
+    }
 }
