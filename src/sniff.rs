@@ -8,8 +8,14 @@ pub enum Kind {
     ImageJpeg,
     ImageGif,
     ImageWebp,
+    ImageHeif,
     Opaque,
 }
+
+/// ISOBMFF major brands that mark a `ftyp` box as HEIC/HEIF/AVIF, not MP4 or MOV.
+const HEIF_BRANDS: [&[u8; 4]; 8] = [
+    b"heic", b"heix", b"heim", b"heis", b"hevc", b"hevx", b"mif1", b"avif",
+];
 
 pub fn sniff(data: &[u8]) -> Kind {
     if data.len() >= 8 && data.starts_with(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]) {
@@ -24,10 +30,71 @@ pub fn sniff(data: &[u8]) -> Kind {
     if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
         return Kind::ImageWebp;
     }
+    if is_heif(data) {
+        return Kind::ImageHeif;
+    }
     if looks_like_text(data) {
         return Kind::Text;
     }
     Kind::Opaque
+}
+
+/// A `ftyp` ISOBMFF box whose major brand names a HEIC/HEIF/AVIF still image,
+/// not the MP4/MOV brands (`isom`, `mp42`, `qt  `, ...) the same container holds.
+fn is_heif(data: &[u8]) -> bool {
+    if data.len() < 12 || &data[4..8] != b"ftyp" {
+        return false;
+    }
+    let brand: &[u8; 4] = match data[8..12].try_into() {
+        Ok(b) => b,
+        Err(_) => return false,
+    };
+    HEIF_BRANDS.contains(&brand)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ftyp(brand: &[u8; 4]) -> Vec<u8> {
+        let mut data = vec![0, 0, 0, 24];
+        data.extend_from_slice(b"ftyp");
+        data.extend_from_slice(brand);
+        data.extend_from_slice(&[0; 16]);
+        data
+    }
+
+    #[test]
+    fn sniffs_heic() {
+        assert_eq!(sniff(&ftyp(b"heic")), Kind::ImageHeif);
+    }
+
+    #[test]
+    fn sniffs_avif() {
+        assert_eq!(sniff(&ftyp(b"avif")), Kind::ImageHeif);
+    }
+
+    #[test]
+    fn sniffs_mif1() {
+        assert_eq!(sniff(&ftyp(b"mif1")), Kind::ImageHeif);
+    }
+
+    #[test]
+    fn mp4_ftyp_is_not_heif() {
+        assert_eq!(sniff(&ftyp(b"isom")), Kind::Opaque);
+        assert_eq!(sniff(&ftyp(b"mp42")), Kind::Opaque);
+        assert_eq!(sniff(&ftyp(b"qt  ")), Kind::Opaque);
+    }
+
+    #[test]
+    fn short_ftyp_is_not_heif() {
+        assert!(!is_heif(b"ftyp"));
+    }
+
+    #[test]
+    fn truncated_ftyp_box_is_not_heif() {
+        assert!(!is_heif(b"\0\0\0\x18ftyphe"));
+    }
 }
 
 fn looks_like_text(data: &[u8]) -> bool {
