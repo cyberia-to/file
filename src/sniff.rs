@@ -8,6 +8,7 @@ pub enum Kind {
     ImageJpeg,
     ImageGif,
     ImageWebp,
+    ArchiveTar,
     Opaque,
 }
 
@@ -24,10 +25,21 @@ pub fn sniff(data: &[u8]) -> Kind {
     if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
         return Kind::ImageWebp;
     }
+    if is_ustar(data) {
+        return Kind::ArchiveTar;
+    }
     if looks_like_text(data) {
         return Kind::Text;
     }
     Kind::Opaque
+}
+
+/// POSIX ustar header: the magic `ustar` sits at byte offset 257, either
+/// null-terminated (plain ustar) or followed by `00` (GNU/pre-POSIX
+/// tar writes `ustar  \0`, no version digits). The 512-byte block that
+/// carries it must fully exist.
+fn is_ustar(data: &[u8]) -> bool {
+    data.len() >= 512 && &data[257..262] == b"ustar"
 }
 
 fn looks_like_text(data: &[u8]) -> bool {
@@ -44,4 +56,46 @@ fn looks_like_text(data: &[u8]) -> bool {
         }
     }
     weird * 20 < data.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ustar_block(magic: &[u8]) -> [u8; 512] {
+        let mut block = [0u8; 512];
+        block[257..257 + magic.len()].copy_from_slice(magic);
+        block
+    }
+
+    #[test]
+    fn sniffs_posix_ustar() {
+        let block = ustar_block(b"ustar\0");
+        assert_eq!(sniff(&block), Kind::ArchiveTar);
+    }
+
+    #[test]
+    fn sniffs_gnu_ustar() {
+        let block = ustar_block(b"ustar  \0");
+        assert_eq!(sniff(&block), Kind::ArchiveTar);
+    }
+
+    #[test]
+    fn rejects_short_block() {
+        let mut block = ustar_block(b"ustar\0").to_vec();
+        block.truncate(511);
+        assert_eq!(sniff(&block), Kind::Opaque);
+    }
+
+    #[test]
+    fn rejects_v7_tar_with_no_magic() {
+        let block = [0u8; 512];
+        assert_eq!(sniff(&block), Kind::Opaque);
+    }
+
+    #[test]
+    fn rejects_wrong_magic() {
+        let block = ustar_block(b"zstar");
+        assert_eq!(sniff(&block), Kind::Opaque);
+    }
 }
