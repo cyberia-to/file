@@ -8,6 +8,7 @@ pub enum Kind {
     ImageJpeg,
     ImageGif,
     ImageWebp,
+    ArchiveZstd,
     Opaque,
 }
 
@@ -23,6 +24,9 @@ pub fn sniff(data: &[u8]) -> Kind {
     }
     if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
         return Kind::ImageWebp;
+    }
+    if data.len() >= 4 && data[0..4] == [0x28, 0xb5, 0x2f, 0xfd] {
+        return Kind::ArchiveZstd;
     }
     if looks_like_text(data) {
         return Kind::Text;
@@ -44,4 +48,29 @@ fn looks_like_text(data: &[u8]) -> bool {
         }
     }
     weird * 20 < data.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sniffs_zstd() {
+        let data = [0x28, 0xb5, 0x2f, 0xfd, 0x20, 0x00, 0x00, 0x00];
+        assert_eq!(sniff(&data), Kind::ArchiveZstd);
+    }
+
+    #[test]
+    fn rejects_short_zstd_prefix() {
+        let data = [0x28, 0xb5, 0x2f];
+        assert_eq!(sniff(&data), Kind::Opaque);
+    }
+
+    #[test]
+    fn rejects_zstd_skippable_frame_magic() {
+        // 0x184D2A50..=0x184D2A5F are skippable frames, not the data frame
+        // magic this sniff scopes to.
+        let data = [0x50, 0x2a, 0x4d, 0x18, 0x00, 0x00, 0x00, 0x00];
+        assert_eq!(sniff(&data), Kind::Opaque);
+    }
 }
