@@ -8,6 +8,7 @@ pub enum Kind {
     ImageJpeg,
     ImageGif,
     ImageWebp,
+    Zip,
     Opaque,
 }
 
@@ -24,10 +25,55 @@ pub fn sniff(data: &[u8]) -> Kind {
     if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
         return Kind::ImageWebp;
     }
+    if is_zip(data) {
+        return Kind::Zip;
+    }
     if looks_like_text(data) {
         return Kind::Text;
     }
     Kind::Opaque
+}
+
+/// A ZIP local-file-header, empty-archive or spanned-archive signature.
+/// The container docx/xlsx/pptx/epub/jar all share; `sniff` does not look
+/// inside for those more specific formats.
+fn is_zip(data: &[u8]) -> bool {
+    data.len() >= 4
+        && (data.starts_with(&[0x50, 0x4b, 0x03, 0x04])
+            || data.starts_with(&[0x50, 0x4b, 0x05, 0x06])
+            || data.starts_with(&[0x50, 0x4b, 0x07, 0x08]))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sniffs_zip_local_file_header() {
+        let mut data = vec![0x50, 0x4b, 0x03, 0x04];
+        data.extend_from_slice(&[0; 16]);
+        assert_eq!(sniff(&data), Kind::Zip);
+    }
+
+    #[test]
+    fn sniffs_empty_zip_archive() {
+        assert_eq!(sniff(&[0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0]), Kind::Zip);
+    }
+
+    #[test]
+    fn sniffs_spanned_zip_archive() {
+        assert_eq!(sniff(&[0x50, 0x4b, 0x07, 0x08, 0, 0, 0, 0]), Kind::Zip);
+    }
+
+    #[test]
+    fn truncated_zip_signature_is_not_zip() {
+        assert!(!is_zip(&[0x50, 0x4b, 0x03]));
+    }
+
+    #[test]
+    fn pk_prefixed_text_is_not_zip() {
+        assert_eq!(sniff(b"PKthis is just some text"), Kind::Text);
+    }
 }
 
 fn looks_like_text(data: &[u8]) -> bool {
