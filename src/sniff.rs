@@ -8,6 +8,7 @@ pub enum Kind {
     ImageJpeg,
     ImageGif,
     ImageWebp,
+    ArchiveGzip,
     Opaque,
 }
 
@@ -23,6 +24,11 @@ pub fn sniff(data: &[u8]) -> Kind {
     }
     if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
         return Kind::ImageWebp;
+    }
+    // RFC 1952 member header: magic 1f 8b, deflate compression method 08.
+    // A third byte outside {0..=8, reserved flag bits set} is not gzip.
+    if data.len() >= 3 && data[0] == 0x1f && data[1] == 0x8b && data[2] == 0x08 {
+        return Kind::ArchiveGzip;
     }
     if looks_like_text(data) {
         return Kind::Text;
@@ -44,4 +50,27 @@ fn looks_like_text(data: &[u8]) -> bool {
         }
     }
     weird * 20 < data.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sniffs_gzip() {
+        let data = [0x1f, 0x8b, 0x08, 0x00, 0, 0, 0, 0, 0, 0x03];
+        assert_eq!(sniff(&data), Kind::ArchiveGzip);
+    }
+
+    #[test]
+    fn short_gzip_prefix_is_not_gzip() {
+        assert_eq!(sniff(&[0x1f, 0x8b]), Kind::Opaque);
+    }
+
+    #[test]
+    fn gzip_magic_with_unknown_compression_method_is_not_gzip() {
+        // RFC 1952 defines only method 8 (deflate); anything else is not gzip.
+        let data = [0x1f, 0x8b, 0x09, 0x00, 0, 0, 0, 0, 0, 0x03];
+        assert_eq!(sniff(&data), Kind::Opaque);
+    }
 }
