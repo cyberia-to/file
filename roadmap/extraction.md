@@ -6,7 +6,7 @@ status: planned
 # Extract shared file behavior
 
 Move reusable file behavior into `cyber-file` and make existing consumers call
-it. [The specs](../specs/README.md) are the implementation target. This page
+it. [The specs](../specs/) are the implementation target. This page
 tracks removal obligations; runtime work remains planned.
 
 Source snapshots: [File](https://github.com/cyberia-to/file/tree/fc666a5880ff874adae655150414b3a45832baf0),

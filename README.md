@@ -18,4 +18,4 @@ Rust package `cyber-file`, library `file`, currently provides `File`, `Particle`
 `Kind` and `sniff`. The next step transfers streaming verification and readers
 from existing consumers into this library.
 
-[Specification](specs/README.md) · [Extraction plan](roadmap/extraction.md)
+[Specification](specs/) · [Extraction plan](roadmap/extraction.md)
