@@ -1,15 +1,21 @@
-# file
+---
+title: File
+tags: file, soft3
+crystal-type: component
+crystal-domain: cyber
+---
+# File
 
-Content-addressed files and their particle identities.
+The shared representation of a [[file]]: data together with its [[particle]],
+the immutable 32-byte Hemera identity. The same file can have many names and
+appear in many views; [[fs]] manages that organization.
 
-A **file** is `particle + data`. Its **particle** is the 32-byte Hemera digest
-that identifies the content. A particle can be known without its bytes being
-available on this machine.
+File gives applications one place to construct, identify and inspect content.
+[[hemera]] supplies hashing. [[spark]] opens and renders detected formats.
+[[cybergraph]] supplies authorized access to bytes stored in [[bbg]].
 
-Rust package: `cyber-file`; library: `file`. It provides `File`, `Particle`,
-`Kind` and `sniff` for Spark and Cyb. Hemera owns hashing; Spark owns opening
-and rendering a file's content.
+Rust package `cyber-file`, library `file`, currently provides `File`, `Particle`,
+`Kind` and `sniff`. The next step transfers streaming verification and readers
+from existing consumers into this library.
 
-```text
-hemera  →  file::{Particle, File, Kind}  →  spark
-```
+[Specification](specs/) · [Extraction plan](roadmap/extraction.md)
