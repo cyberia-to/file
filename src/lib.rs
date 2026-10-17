@@ -106,6 +106,19 @@ impl File {
         Self { particle, data }
     }
 
+    /// Bind bytes to a claimed particle, rehashing to check the claim.
+    /// `None` if `data` does not hash to `particle`. This is the
+    /// self-authentication a network fetch needs before anything touches
+    /// disk: bytes arrive under a particle named by the graph, and nothing
+    /// downstream should see them until they are proven to be that particle.
+    pub fn verified(particle: Particle, data: Vec<u8>) -> Option<Self> {
+        if Particle::hash(&data) == particle {
+            Some(Self { particle, data })
+        } else {
+            None
+        }
+    }
+
     pub fn kind(&self) -> Kind {
         sniff(&self.data)
     }
@@ -142,5 +155,19 @@ mod tests {
         let mut data = vec![0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
         data.extend_from_slice(&[0; 16]);
         assert_eq!(sniff(&data), Kind::ImagePng);
+    }
+
+    #[test]
+    fn verified_accepts_bytes_matching_the_claimed_particle() {
+        let particle = Particle::hash(b"trusted bytes");
+        let f = File::verified(particle, b"trusted bytes".to_vec()).expect("hash matches");
+        assert_eq!(f.particle, particle);
+        assert_eq!(f.data, b"trusted bytes");
+    }
+
+    #[test]
+    fn verified_rejects_bytes_that_do_not_hash_to_the_claimed_particle() {
+        let claimed = Particle::hash(b"trusted bytes");
+        assert!(File::verified(claimed, b"swapped bytes".to_vec()).is_none());
     }
 }
