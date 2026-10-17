@@ -40,7 +40,7 @@ pub fn sniff(data: &[u8]) -> Kind {
     if data.len() >= 12 && &data[4..8] == b"ftyp" {
         return Kind::VideoMp4;
     }
-    if data.len() >= 4 && &data[0..4] == &[0x1a, 0x45, 0xdf, 0xa3] {
+    if data.len() >= 4 && data[0..4] == [0x1a, 0x45, 0xdf, 0xa3] {
         return Kind::VideoWebm;
     }
     if data.starts_with(b"OggS") {
