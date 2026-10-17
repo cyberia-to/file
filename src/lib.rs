@@ -47,7 +47,7 @@ impl Particle {
         s
     }
 
-    /// First four bytes, for chrome and tables.
+    /// First four bytes, for chroma and tables.
     pub fn short_hex(&self) -> String {
         let mut s = String::with_capacity(8);
         for b in &self.0[..4] {
