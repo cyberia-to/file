@@ -41,7 +41,11 @@ pub fn readdress(cid: &str, bytes: Option<&[u8]>) -> Readdressed {
         Some(data) => (Particle::hash(data), true),
         None => (Particle::hash(cid.as_bytes()), false),
     };
-    Readdressed { cid: cid.to_string(), particle, has_bytes }
+    Readdressed {
+        cid: cid.to_string(),
+        particle,
+        has_bytes,
+    }
 }
 
 /// Re-address a batch. One output row per input CID, same order: the count
@@ -100,6 +104,6 @@ mod tests {
         let bytes: [Option<&[u8]>; 3] = [Some(b"one"), None, Some(b"three")];
         let out = readdress_all(cids.into_iter().zip(bytes));
         assert_eq!(out.len(), cids.len());
-        assert!(out[1].has_bytes == false);
+        assert!(!out[1].has_bytes);
     }
 }
